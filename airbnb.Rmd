@@ -1,0 +1,348 @@
+---
+title: "Data Analysis for Airbnb Boston"
+author: "Ruiyi Lian"
+date: "2020/11/11"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width = 8, collapse = TRUE,echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(ggplot2)              
+library(tidyr)
+library(dplyr)
+library(kableExtra)
+library(magrittr)
+library(lme4)
+require(lattice)
+require(arm)
+library(tinytex)
+```
+
+
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
+
+## Abstract
+
+This project aims to analyze a large dataset released by official website of Airbnb company. The project is divided into four parts: introduction, data cleaning, EDA, modeling, and conclusion. The Introduction part talks about the background and the goals of the project, and also includes the explanation of the dataset and variables. The data cleaning part is mainly about filtering and deleting the bad data or useless data. The EDA(exploratory data analysis) aims to analyze the dataset in order to summarize its main characteristics with visual methods. The modeling part includes building model and model selection. The conclusion part includes result and the discussion, so that I can talk about the what I found in this project and what I will do for next step.
+
+## Introduction
+
+### Background
+
+Airbnb,Inc is an American company that provides a platform for hosts to accommodate guests with short-term lodging and tourism-related activities. The guests can choose the lodging depending on various elements such as location, equipment, environment and ect. The hosts can provide other services or equipment to attract the guests, in addition to satisfying the standard requirement of Airbnb. Certainly, for the hosts, the pricing is their prior consideration. The pricing is fluctuated by location, environment and many other elements. However, unlike some hotels, the price of the rooms are decided by the hosts who sometimes relatively lack the comprehensive information. 
+
+
+### Goals
+
+The goal of the project aims to provide an appropriate model which shows relationship between pricing and other elements such as location, reviews, room type and ect.
+
+### Data Explanation
+
+```{r,echo=FALSE}
+#Read Data
+list1<- read.csv("/Users/bobhuang/Desktop/airbnb/2019-10.csv",header=TRUE)
+list2<- read.csv("/Users/bobhuang/Desktop/airbnb/2019-11.csv",header=TRUE)
+list3<- read.csv("/Users/bobhuang/Desktop/airbnb/2019-12.csv",header=TRUE)
+list4<- read.csv("/Users/bobhuang/Desktop/airbnb/2020-1.csv",header=TRUE)
+list5<- read.csv("/Users/bobhuang/Desktop/airbnb/2020-2.csv",header=TRUE)
+list6<- read.csv("/Users/bobhuang/Desktop/airbnb/2020-3.csv",header=TRUE)
+list7<- read.csv("/Users/bobhuang/Desktop/airbnb/2020-4.csv",header=TRUE)
+list8<- read.csv("/Users/bobhuang/Desktop/airbnb/2020-5.csv",header=TRUE)
+list9<- read.csv("/Users/bobhuang/Desktop/airbnb/2020-6.csv",header=TRUE)
+list10<- read.csv("/Users/bobhuang/Desktop/airbnb/2020-7.csv",header=TRUE)
+list11<- read.csv("/Users/bobhuang/Desktop/airbnb/2020-8.csv",header=TRUE)
+list12<- read.csv("/Users/bobhuang/Desktop/airbnb/2020-9.csv",header=TRUE)
+list13<- read.csv("/Users/bobhuang/Desktop/airbnb/2020-10.csv",header=TRUE)
+
+#Combining all the data into one dataset
+airbnb <- rbind(list1,list2,list3,list4,list5,list6,list7,list8,list9,list10,list11,list12,list13)
+```
+The data of Airbnb Boston is downloaded from Airbnb get-data website(http://insideairbnb.com/get-the-data.html).  Since I would like to analyze the data for a year, I chose the monthly listing data from October 2019 to October 2020. Then, I combined these 13 csv files into one dataset named Airbnb. The table below shows an example of the data:
+```{r,echo=FALSE}
+knitr::kable(head(airbnb)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), font_size = 7)
+```
+There are 14 variables in dataset Airbnb, and the meaning of 14 variables are below: 
+
++ id: the unique identification number for each listing
++ host_id: the unique identification number for each host
++ host_name: the name of each host
++ neighbourhood: the geographically localised community in Boston that each listing located in
++ latitude/longtitude: the detailed location of the listing
++ room_type: the type of room of listing(Entirehoom/apt, Hotel room, Private room, Share room)
++ Price: the price(in dollars) of each listing per night
++ minimum_nights: the minimum night per booking, required by host.
++ number_of_reviews: number of reviews from costumer for the listing.
++ last_review: date of last review for the listing
++ review_per_month: number of customer reviews per month
++ calculated_host_listings_count:	the number of listings belonged to a host.
++ availability_365: the number of days a listing is available in a year (365 days), pre-posted by host.
+
+## Data cleanning
+```{r,echo=FALSE}
+#Deleting the useless column:name,neighbourhood_group
+airbnb <- airbnb[,-c(2,5)]
+#Deleting the rows including na vlue
+airbnb <- na.omit(airbnb)
+
+```
+
+```{r, include=FALSE}
+#I would like to delete some rows whose price are higher than 2500. Since these prices are much higher than other price, the result of regression may be influenced.
+airbnb <- filter(airbnb, airbnb$price!=10000)
+airbnb <- filter(airbnb, airbnb$price!=6000)
+airbnb <- filter(airbnb, airbnb$price!=5555)
+airbnb <- filter(airbnb, airbnb$price!=3999)
+airbnb <- filter(airbnb, airbnb$price!=2321)
+airbnb <- filter(airbnb, airbnb$price!=2514)
+airbnb <- filter(airbnb, airbnb$price!=2627)
+```
+
+For the data cleanning, I would like to deleted the useless column: name, neighbourhood_group. Also, I deletedna value. Then, I deleted some rows whose price are higher than 2500. Since these prices are much higher than other price, the result of regression may be influenced. (detailed information see the Appendix)
+
+
+## EDA
+Because of the limitation of the page, more EDA shows in the More EDA part in Appendix.
+
+### Mean Price vs Room type
+
+```{r,echo=FALSE}
+mean_price_room.type <- aggregate(x = airbnb$price,by=list(airbnb$room_type),FUN = mean)
+ggplot(data = mean_price_room.type, aes(x = Group.1, y = x, fill = Group.1)) + 
+         geom_col(position = "stack") + 
+         theme(axis.text.x = element_text(angle = 0, hjust = 1)) +
+         labs(title = "Mean Price vs Room type",x = "Room type", y = "Mean Price")
+
+
+```
+The barplot above shows the type Entired home/apt accounts for the largest proportion among the four room types.
+
+### Mean Price vs Minimum Nights
+
+```{r,echo=FALSE}
+mean_price_minimun <- aggregate(x = airbnb$price,by=list(airbnb$minimum_nights),FUN = mean)
+
+ggplot(mean_price_minimun,aes(x = Group.1, y = x))+
+  geom_line() +
+  geom_smooth(formula = y ~ x, method="lm")+
+  labs(title = "Mean Price vs Minimum Night",x = "Minimum Night",y = "Price")
+```
+
+
+### Mean Price vs Availability 365
+```{r, echo=FALSE}
+zero_availability365 <- filter(airbnb, airbnb$availability_365==0)
+mean_price_ava <- aggregate(x = airbnb$price,by=list(airbnb$availability_365),FUN = mean)
+
+ggplot(mean_price_ava,aes(x = Group.1, y = x))+
+  geom_line() +
+  geom_smooth(formula = y ~ x, method="lm")+
+  labs(title = "Mean Price vs Availability(Figure B)",x = "Availability",y = "price")
+
+```
+The plot shows that there exist a positive relationship between mean price and availability.
+
+
+## Modeling
+Since my goal is to analyze relationship between price and other variables, I chose price as response variable (dependent variable), and neighbourhood,room type,number of reviews,minimum night,availability 365 as predictor variables (independent variable).
+
+### Multilevel Regression Model
+
+Before fitting the multilevel regression model, I fitted two linear regression model fit1 and fit2 (See Model part in Appendix) Since the result of linear regression fit1 shows some level of neighbourhood are not statistically significant, I would like to fit a multilevel linear regression model. Multilevel regression model were designed to analyze data generated from a nested structure because conventional linear regression models underestimate standard errors and, in turn, overestimate test statistics. I used log transformation to transform the response variable price and vary the intercept for neighbourhood. 
+```{r}
+# Since th 0 price exist, I define a log price without 0 price.
+airbnb_log_price <- airbnb
+airbnb_log_price <- filter(airbnb_log_price, airbnb_log_price$price > 0)
+airbnb_log_price$log.price <- log(airbnb_log_price$price)
+
+fit3 <- lmer(log.price ~ room_type + reviews_per_month + minimum_nights + availability_365 +  (1|neighbourhood),data = airbnb_log_price)
+display(fit3)
+```
+
+Interpretion of coefficients:
+Fixed effect:
+For the room type, the model uses Entired room/apt as baseline category against which all other groups are measured. Remaining other variables unchanged, price of hotel room is 21% (1-exp(-0.24) = 0.21) less than entired room/apt. Price of private room is 54% (1-exp(-0.77) = 0.54) less than entired room/apt. Price of shared room is 74% (1-exp(-1.33) = 0.74) less than entired room/apt.
+For the review per month, remaining other variables unchanged, when one unit of reviews per month increases, the price will decrease by 1.4%.
+For the minimum nights, remaining other variables unchanged, when one minimum night increases, the price will decrease by 18%。
+For availability 365, remaining other variables unchanged, when one days that a listing is available in a year (365 days) increases, the price will increase by 0.14%.
+
+Random effect:
+The variance among neighbourhood is 0.05.
+
+### Model Selection
+
+Among the fit1, fit2 and fit3, The fits3 is the best model. To prove that,I used AIC (Akaike Information Criterion) for selecting the model (see Model Selection in the Appendix). For further verification, I used residual plot and binnedplot which shows below.
+
+```{r,fig.show='hold' ,out.width='40%', fig.align='center', fig.cap='自定义图片格式',echo=FALSE}
+
+plot(fit3)
+binnedplot(fitted(fit3), resid(fit3))
+```
+
+The points in the residual plot are randomly dispersed around the horizontal axis. Also, the points in the binned plot are also randomly dispersed around the horizontal axis. Therefore, even though some points in the binned plot are beyond the 4 standard-error (-0.4 y-aixs in the graph), fit3 model is the most appropriate model for the data. 
+
+## Conclusion
+
+### Result
+
+The price of the Airbnb's room in Boston area is affected by location(neighbourhood), type of room, reviews, minimum night and availability. There exists a positive relationship between price and availability, which means when availability(the number of days a listing is available in a year) increases, the price will increase. Oppositely, there exists a negative relationship between price and some other variable which are review per month and minimum night. Setting A lower price by host may attract more booking and positive reviews. A room that setting a less minimum night for one booking maybe have a lower price. Also, the price varies among the different neighbourhood. Besides, the room that belongs to type of entire room or apartment has higher price than the room that belongs to the type of hotel room, private room and shared room.
+
+### Discussion
+
+After the analysis, I found or still had some problems for the data. In the future, I want to solve these problems:
+
+1. Some points in the binnedplot for fits 3 are still beyond the 4 standard deviation, which means that there may be some outliers in the dataset. I will try to do a more detailed process of data cleaning. 
+
+2. For the different neighbourhood  or even the same neighbourhood, if there exists some other price distribution for the room. For example,in the same neighbourhood, if high-pricing room distribute in a certain neighbourhood. Drawing a room distribution map using R can display the price distribution visually better. 
+
+3. The price may be influenced by some other variables, therefore, I need to find a more detailed dataset.
+
+### Reference
+
+1.https://machinelearningmastery.com/probabilistic-model-selection-measures/
+
+2.https://en.wikipedia.org/wiki/Exploratory_data_analysis#:~:text=In%20statistics%2C%20exploratory%20data%20analysis,modeling%20or%20hypothesis%20testing%20task.
+
+3.https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1540459/
+
+4.https://en.wikipedia.org/wiki/Airbnb
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Appendix
+
+### More EDA
+
+#### Mean Price vs Neighbourhood
+
+```{r,echo=FALSE}
+# price vs neighbourhood 
+price_neighbourhood <- airbnb[,-c(1,2,3,5,6,7,9,10,11,12,13,14)]
+mean_price_neighbourhood <- aggregate(x = price_neighbourhood$price,by=list(price_neighbourhood$neighbourhood),FUN = mean)
+ggplot(data = mean_price_neighbourhood, aes(x = Group.1, y = x, fill = Group.1)) + 
+         geom_col(position = "stack") + 
+         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+         labs(title = "Mean Price vs Neighbourhood(figure 1)",x = "Neighbourhood", y = "Mean Price")
+```
+The barplot above shows mean price of each neighbourhood. The West End neighbourhood has the highest mean price, and Mattapan has the lowest mean price.
+
+#### Neighbourhood
+
+```{r, echo=FALSE}
+ggplot(airbnb, aes(x = fct_infreq(neighbourhood), fill=room_type)) +
+    geom_bar() +
+    labs(title = "No. of listings for each neighbourhood",
+         x = "Neighbourhood", y = "No. of listings", subtitle = "Figure 1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+Figure 1 shows that Neighbourhood Dorchester has the largest amount of lodges among all the neighbourhoods, and the Neighbourhood Leather District has the smallest amount of lodge. Also, type Entired home/apt and type Private room accounts for the largest proportion among the four room types.
+
+#### Price vs Numer of Reviews
+
+```{r,echo=FALSE}
+p <- ggplot(airbnb, aes(x = number_of_reviews , y = price)) + geom_point() 
+#reviews per month
+ggplot(airbnb, aes(x = reviews_per_month , y = price)) + 
+  geom_point()+
+  labs(tiltle = "Price vs Reviews per Month",x = "Reviews/30days")
+
+```
+The plot above shows that there are several points whose reviews per month are higher than 30. However, after check the table, there are only two rows that reviews per month are higher than 30. Therefore, I would not like to delete them, since they have no large influence on my analysis. Also. the plot shows that the the low-price-lodgings are more likely to gain higher reviews per month.
+ 
+#### availability
+
+```{r,echo=FALSE}
+mean_price_host <- aggregate(x = airbnb$price,by=list(airbnb$calculated_host_listings_count),FUN = mean)
+
+ggplot(mean_price_host,aes(x = Group.1, y = x))+
+  geom_line() +
+  geom_smooth(formula = y ~ x, method="lm")+
+  labs(title = "Mean Price vs Calculated Host Listings",x = "calculated Host Listings",y = "price")
+```
+
+
+### Model
+
+#### Simple Linear Regression Model
+
+Before fitting the multilevel regression model, I tried to build a simple linear regression model.
+```{r}
+fit1 <- lm(price ~ neighbourhood + room_type + reviews_per_month + minimum_nights + availability_365,data = airbnb)
+summary(fit1)
+```
+
+From the result of fit1, most of P-value is smaller than 0,05, which means most of coefficients are statistically significant. However, three of neighbourhoods'p-value are larger than 0.05. The model may not fit the data. Before I solve the problem of variable neighbourhood, I want to make sure that other variable have no problem. Therefore, I try one more simple linear regression model without variable neighbourhood.
+
+```{r}
+fit2 <- lm(price ~ room_type + reviews_per_month + minimum_nights + availability_365,data = airbnb)
+summary(fit2)
+```
+
+According to the result of fit2, every p-value is smaller than 0.05. Every coefficient is statistically significant.
+Interpretion of coefficients：
+For the room type, the model uses Entired room/apt as baseline category against which all other groups are measured. Remaining other variable unchanged, the price of hotel room is 0.574 lower than the price of entired room/apt. The price of private room is 0.013 lower than the price of entired room/apt. The price of shared room is 0.016 lower than the price of entired room/apt.
+For the reviews per month, remaining other variables unchanged, when one unit of reviews per month increases, the price will decrease by 6.177.
+For the minimum_nights, remaining other variables unchanged,when one minimum night increases, the price will decrease by 0.325.
+For the availabilty 365, remaining other variables unchanged, when one days that a listing is available in a year (365 days) increases, the price will increase by 0.062.
+
+### Model Selection
+
+I use Akaike Information Criterion to select the best model among fit1, fit2 and fit3.To use AIC for model selection, we simply choose the model giving smallest AIC over the set of models considered.
+
+```{r}
+aic_value <- c(AIC(fit1), AIC(fit2), AIC(fit3))
+knitr::kable(aic_value,col.names = c('AIC value'))
+```
+
+### Some other plots
+
+```{r,echo = FALSE}
+#Price
+ggplot(data=airbnb, aes(x=id, y=price)) + geom_point() +
+  labs(x = "room_id", y = "price")
+```
+
+I would like to delete some rows whose price are higher than 2500. Since these prices are much higher than other price, the result of regression may be influenced.
+
+
+```{r, echo=FALSE}
+#availability 365
+ggplot(data=airbnb, aes(y=price, x=availability_365)) + geom_point() +
+  labs(x = "ava", y = "price")
+```
+
+Availability_365 = 0 means that the listing is not available at all or in other words 0 days out of the year (365). Which can mean : 1) At the moment of collecting data for this dataset, those hosts had their listing availability set to 0 . available'(https://www.kaggle.com/dgomonov/new-york-city-airbnb-open-data/discussion/111835).
+
+```{r}
+# minimum nights
+ggplot(data=airbnb, aes(x=id, y=minimum_nights)) + geom_point() +
+  labs(x = "room_id", y = "nights")
+
+#number of reviews
+ggplot(data=airbnb, aes(x=id, y=number_of_reviews)) + geom_point() +
+  labs(x = "room_id", y = "reviews")
+
+#Calculated host listings count
+ggplot(data=airbnb, aes(x=id, y=calculated_host_listings_count)) + geom_point() +
+  labs(x = "room_id", y = "counts")
+ggplot(data=airbnb, aes(x=price, y=calculated_host_listings_count)) + geom_point() +
+  labs(x = "price", y = "counts")
+```
+
+
